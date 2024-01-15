@@ -40,12 +40,12 @@ import {
     isStandardAddress,
 } from '../misc.js';
 import { getNetwork } from '../network.js';
-import { validateAmount, createAndSendTransaction } from '../transactions.js';
 import { strHardwareName } from '../ledger';
 import { guiAddContactPrompt } from '../contacts-book';
 import { scanQRCode } from '../scanner';
 import { useWallet } from '../composables/use_wallet.js';
 import { useSettings } from '../composables/use_settings.js';
+import { validateAmount } from '../legacy.js';
 
 const wallet = useWallet();
 const activity = ref(null);
@@ -270,7 +270,7 @@ async function lockWallet() {
  */
 async function send(address, amount) {
     // Ensure a wallet is unlocked
-    if (wallet.isViewOnly.value) {
+    if (wallet.isViewOnly.value && !wallet.isHardwareWallet.value) {
         return createAlert(
             'warning',
             tr(ALERTS.WALLET_UNLOCK_IMPORT, [
@@ -356,11 +356,7 @@ async function send(address, amount) {
     transferAmount.value = '';
 
     // Create and send the TX
-    await createAndSendTransaction({
-        address,
-        amount: nValue,
-        isDelegation: false,
-    });
+    await wallet.createAndSendTransaction(getNetwork(), address, nValue);
 }
 
 getEventEmitter().on('toggle-network', async () => {

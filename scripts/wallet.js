@@ -3,7 +3,8 @@ import { decrypt } from './aes-gcm.js';
 import { beforeUnloadListener } from './global.js';
 import { getNetwork } from './network.js';
 import { MAX_ACCOUNT_GAP } from './chain_params.js';
-import { Transaction, HistoricalTx, HistoricalTxType } from './mempool.js';
+import { HistoricalTx, HistoricalTxType } from './mempool.js';
+import { Transaction } from './transaction.js';
 import { confirmPopup, createAlert } from './misc.js';
 import { cChainParams } from './chain_params.js';
 import { COIN } from './chain_params.js';
@@ -16,7 +17,7 @@ import { Account } from './accounts.js';
 import { fAdvancedMode } from './settings.js';
 import { bytesToHex, hexToBytes } from './utils.js';
 import { strHardwareName } from './ledger.js';
-import { COutpoint, UTXO_WALLET_STATE } from './mempool.js';
+import { UTXO_WALLET_STATE } from './mempool.js';
 import {
     isP2CS,
     isP2PKH,
@@ -25,6 +26,7 @@ import {
     P2PK_START_INDEX,
     OWNER_START_INDEX,
 } from './script.js';
+import { TransactionBuilder } from './transaction_builder.js';
 
 /**
  * Class Wallet, at the moment it is just a "realization" of Masterkey with a given nAccount
@@ -443,11 +445,23 @@ export class Wallet {
         return this.isOwnAddress(address);
     }
 
+    isMyVout(script) {
+        const { type, addresses } = this.getAddressesFromScript(script);
+        const index = addresses.findIndex((s) => this.isOwnAddress(s));
+        if (index === -1) return UTXO_WALLET_STATE.NOT_MINE;
+        if (type === 'p2pkh') return UTXO_WALLET_STATE.SPENDABLE;
+        if (type === 'p2cs') {
+            return index === 0
+                ? UTXO_WALLET_STATE.COLD_RECEIVED
+                : UTXO_WALLET_STATE.SPENDABLE_COLD;
+        }
+    }
+
     /**
      * Get addresses from a script
      * @returns {{ type: 'p2pkh'|'p2cs'|'unknown', addresses: string[] }}
      */
-    #getAddressesFromScript(script) {
+    getAddressesFromScript(script) {
         const dataBytes = hexToBytes(script);
         if (isP2PKH(dataBytes)) {
             const address = this.getAddressFromHashCache(
@@ -477,17 +491,6 @@ export class Wallet {
         }
     }
 
-    isMyVout(script) {
-        const { type, addresses } = this.#getAddressesFromScript(script);
-        const index = addresses.findIndex((s) => this.isOwnAddress(s));
-        if (index === -1) return UTXO_WALLET_STATE.NOT_MINE;
-        if (type === 'p2pkh') return UTXO_WALLET_STATE.SPENDABLE;
-        if (type === 'p2cs') {
-            return index === 0
-                ? UTXO_WALLET_STATE.COLD_RECEIVED
-                : UTXO_WALLET_STATE.SPENDABLE_COLD;
-        }
-    }
     // Avoid calculating over and over the same getAddressFromHash by saving the result in a map
     getAddressFromHashCache(pkh_hex, isColdStake) {
         if (!this.#knownPKH.has(pkh_hex)) {
@@ -583,7 +586,7 @@ export class Wallet {
         return tx.vout.reduce(
             (acc, vout) => [
                 ...acc,
-                ...this.#getAddressesFromScript(vout.script).addresses,
+                ...this.getAddressesFromScript(vout.script).addresses,
             ],
             []
         );
@@ -639,6 +642,121 @@ export class Wallet {
             );
         }
         return histTXs;
+    }
+
+    /**
+     * Create a non signed transaction
+     * @param {string} address - Address to send to
+     * @param {number} value - Amount of satoshis to send
+     * @param {object} [opts] - Options
+     * @param {boolean} [opts.isDelegation] - Whether or not this delegates PIVs to `address`.
+     *     If set to true, `address` must be a valid cold staking address
+     * @param {boolean} [opts.useDelegatedInputs] - Whether or not cold stake inputs are to be used.
+     *    Should be set if this is an undelegation transaction.
+     * @param {string?} [opts.changeDelegationAddress] - Which address to use as change when `useDelegatedInputs` is set to true.
+     *     Only changes >= 1 PIV can be delegated
+     * @param {boolean} [opts.isProposal] - Whether or not this is a proposal transaction
+     */
+    createTransaction(
+        address,
+        value,
+        {
+            isDelegation = false,
+            useDelegatedInputs = false,
+            delegateChange = false,
+            changeDelegationAddress = null,
+            isProposal = false,
+        } = {}
+    ) {
+        const balance = useDelegatedInputs
+            ? mempool.coldBalance
+            : mempool.balance;
+        if (balance < value) {
+            throw new Error('Not enough balance');
+        }
+        if (delegateChange && !changeDelegationAddress)
+            throw new Error(
+                '`delegateChange` was set to true, but no `changeDelegationAddress` was provided.'
+            );
+        const filter = useDelegatedInputs
+            ? UTXO_WALLET_STATE.SPENDABLE_COLD
+            : UTXO_WALLET_STATE.SPENDABLE;
+        const utxos = mempool.getUTXOs({ filter, target: value });
+        const transactionBuilder = TransactionBuilder.create().addUTXOs(utxos);
+
+        const fee = transactionBuilder.getFee();
+        const changeValue = transactionBuilder.valueIn - value - fee;
+
+        // Add change output
+        if (changeValue > 0) {
+            const [changeAddress] = this.getNewAddress(1);
+            if (delegateChange && changeValue > 1.01 * COIN) {
+                transactionBuilder.addColdStakeOutput({
+                    address: changeAddress,
+                    value: changeValue,
+                    addressColdStake: changeDelegationAddress,
+                });
+            } else {
+                transactionBuilder.addOutput({
+                    address: changeAddress,
+                    value: changeValue,
+                });
+            }
+        } else {
+            // We're sending alot! So we deduct the fee from the send amount. There's not enough change to pay it with!
+            value -= fee;
+        }
+
+        // Add primary output
+        if (isDelegation) {
+            const [returnAddress] = this.getNewAddress(1);
+            transactionBuilder.addColdStakeOutput({
+                address: returnAddress,
+                addressColdStake: address,
+                value,
+            });
+        } else if (isProposal) {
+            transactionBuilder.addProposalOutput({
+                hash: address,
+                value,
+            });
+        } else {
+            transactionBuilder.addOutput({
+                address,
+                value,
+            });
+        }
+        return transactionBuilder.build();
+    }
+
+    /**
+     * @param {Transaction} transaction - transaction to sign
+     * @throws {Error} if the wallet is view only
+     * @returns {Promise<Transaction>} a reference to the same transaction, signed
+     */
+    async sign(transaction) {
+        if (this.isViewOnly()) {
+            throw new Error('Cannot sign with a view only wallet');
+        }
+        for (let i = 0; i < transaction.vin.length; i++) {
+            const input = transaction.vin[i];
+            const { type } = this.getAddressesFromScript(input.scriptSig);
+            const path = this.getPath(input.scriptSig);
+            const wif = this.getMasterKey().getPrivateKey(path);
+            await transaction.signInput(i, wif, {
+                isColdStake: type === 'p2cs',
+            });
+        }
+        return transaction;
+    }
+
+    /**
+     * Finalize Transaction. To be called after it's signed and sent to the network, if successful
+     * @param {Transaction} transaction
+     */
+    finalizeTransaction(transaction) {
+        mempool.updateMempool(transaction);
+        mempool.setBalance();
     }
 }
 

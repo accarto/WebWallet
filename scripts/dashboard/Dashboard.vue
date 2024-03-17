@@ -34,7 +34,7 @@ import {
     updateEncryptionGUI,
     updateLogOutButton,
 } from '../global';
-import { mempool, refreshChainData } from '../global.js';
+import { refreshChainData } from '../global.js';
 import {
     confirmPopup,
     isXPub,

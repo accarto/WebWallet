@@ -1,7 +1,7 @@
 import { validateMnemonic } from 'bip39';
 import { decrypt } from './aes-gcm.js';
 import { parseWIF } from './encoding.js';
-import { beforeUnloadListener } from './global.js';
+import { beforeUnloadListener, stakingDashboard } from './global.js';
 import { getNetwork } from './network.js';
 import { MAX_ACCOUNT_GAP, SHIELD_BATCH_SYNC_SIZE } from './chain_params.js';
 import { HistoricalTx, HistoricalTxType } from './historical_tx.js';
@@ -83,11 +83,6 @@ export class Wallet {
      * @type {Map<String,String>}
      */
     #knownPKH = new Map();
-    /**
-     * True if this is the global wallet, false otherwise
-     * @type {Boolean}
-     */
-    #isMainWallet;
 
     /**
      * @type {Mempool}
@@ -97,15 +92,8 @@ export class Wallet {
     #isSynced = false;
     #isFetchingLatestBlocks = false;
 
-    constructor({
-        nAccount,
-        isMainWallet,
-        masterKey,
-        shield,
-        mempool = new Mempool(),
-    }) {
+    constructor({ nAccount, masterKey, shield, mempool = new Mempool() }) {
         this.#nAccount = nAccount;
-        this.#isMainWallet = isMainWallet;
         this.#mempool = mempool;
         this.#masterKey = masterKey;
         this.#shield = shield;
@@ -113,6 +101,7 @@ export class Wallet {
             this.#highestUsedIndices.set(i, 0);
             this.#loadedIndexes.set(i, 0);
         }
+        this.subscribeToNetworkEvents();
     }
 
     /**
@@ -229,10 +218,6 @@ export class Wallet {
         this.#nAccount = nAccount;
         if (isNewAcc) {
             this.reset();
-            // If this is the global wallet update the network master key
-            if (this.#isMainWallet) {
-                getNetwork().setWallet(this);
-            }
             for (let i = 0; i < Wallet.chains; i++) this.loadAddresses(i);
         }
     }
@@ -274,10 +259,6 @@ export class Wallet {
             this.#addressIndices.set(i, 0);
         }
         this.#mempool = new Mempool();
-        // TODO: This needs to be refactored to remove the getNetwork dependency
-        if (this.#isMainWallet) {
-            getNetwork().reset();
-        }
     }
 
     /**
@@ -702,7 +683,7 @@ export class Wallet {
             this.#syncing = true;
             await this.loadFromDisk();
             await this.loadShieldFromDisk();
-            await getNetwork().walletFullSync();
+            await this.#transparentSync();
             if (this.hasShield()) {
                 await this.#syncShield();
             }
@@ -710,7 +691,18 @@ export class Wallet {
         } finally {
             this.#syncing = false;
         }
+        // Update both activities post sync
+        stakingDashboard.update(0);
+        getEventEmitter().emit('new-tx');
     }
+
+    async #transparentSync() {
+        if (!this.isLoaded() || this.#isSynced) return;
+        const cNet = getNetwork();
+        await cNet.getLatestTxs(this);
+        getEventEmitter().emit('transparent-sync-status-update', '', true);
+    }
+
     /**
      * Initial block and prover sync for the shield object
      */
@@ -798,10 +790,23 @@ export class Wallet {
             });
     }
 
+    subscribeToNetworkEvents() {
+        getEventEmitter().on('new-block', async (block) => {
+            //TODO: unify the transparent sync with the shield sync
+            // in particular in place of getLatestTxs read directly from the block as we do for shielding
+            if (this.#isSynced) {
+                await getNetwork().getLatestTxs(this);
+                stakingDashboard.update(0);
+                getEventEmitter().emit('new-tx');
+                await this.getLatestBlocks(block);
+            }
+        });
+    }
     /**
      * Update the shield object with the latest blocks
+     * @param{number} blockCount - block count
      */
-    async getLatestBlocks() {
+    async getLatestBlocks(blockCount) {
         // Exit if this function is still processing
         // (this might take some time if we had many consecutive blocks without shield txs)
         if (this.#isFetchingLatestBlocks) return;
@@ -814,7 +819,7 @@ export class Wallet {
         // since it takes around 1 minute for blockbook to make it API available
         for (
             let blockHeight = this.#shield.getLastSyncedBlock() + 1;
-            blockHeight < cNet.cachedBlockCount;
+            blockHeight < blockCount;
             blockHeight++
         ) {
             try {
@@ -992,6 +997,7 @@ export class Wallet {
      * @param {import('./transaction.js').Transaction} transaction
      */
     async #signShield(transaction) {
+        const blockHeight = await getNetwork().getBlockCount();
         if (!transaction.hasSaplingVersion) {
             throw new Error(
                 '`signShield` was called with a tx that cannot have shield data'
@@ -1021,7 +1027,7 @@ export class Wallet {
                     this.getAddressesFromScript(transaction.vout[0].script)
                         .addresses[0],
                 amount: value,
-                blockHeight: getNetwork().cachedBlockCount,
+                blockHeight: blockHeight + 1,
                 useShieldInputs: transaction.vin.length === 0,
                 utxos: this.#getUTXOsForShield(),
                 transparentChangeAddress: this.getNewAddress(1)[0],
@@ -1163,7 +1169,7 @@ export class Wallet {
 /**
  * @type{Wallet}
  */
-export const wallet = new Wallet({ nAccountL: 0, isMainWallet: true }); // For now we are using only the 0-th account, (TODO: update once account system is done)
+export const wallet = new Wallet({ nAccountL: 0 }); // For now we are using only the 0-th account, (TODO: update once account system is done)
 
 /**
  * Clean a Seed Phrase string and verify it's integrity

@@ -1089,13 +1089,21 @@ export class Wallet {
         }
 
         if (transaction.hasShieldData) {
-            wallet.#shield?.finalizeTransaction(transaction.txid);
+            await wallet.#shield?.finalizeTransaction(transaction.txid);
         }
 
         if (!skipDatabase) {
             const db = await Database.getInstance();
             await db.storeTx(transaction);
         }
+    }
+
+    /**
+     * Discard a transaction. Must be called only if network doesn't accept it.
+     * @param {import('./transaction.js').Transaction} transaction
+     */
+    discardTransaction(transaction) {
+        wallet.#shield?.discardTransaction(transaction.txid);
     }
 
     /**

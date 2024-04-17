@@ -745,7 +745,7 @@ export class Wallet {
             await startBatch(
                 async (i) => {
                     let block;
-                    block = await cNet.getBlock(blockHeights[i]);
+                    block = await cNet.getBlock(blockHeights[i], true);
                     blocks[i] = block;
                     // We need to process blocks monotically
                     // When we get a block, start from the first unhandled
@@ -840,7 +840,7 @@ export class Wallet {
             blockHeight++
         ) {
             try {
-                block = await cNet.getBlock(blockHeight);
+                const block = await cNet.getBlock(blockHeight, false);
                 if (block.txs) {
                     if (this.hasShield()) {
                         if (blockHeight > this.#shield.getLastSyncedBlock()) {

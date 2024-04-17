@@ -968,12 +968,12 @@ async function renderProposals(arrProposals, fContested) {
 
         const domStatus = domRow.insertCell();
         domStatus.classList.add('governStatusCol');
-        if (domTable.id == 'proposalsTableBody') {
+        if (!fContested) {
             domStatus.setAttribute(
                 'onclick',
                 `if(document.getElementById('governMob${i}').classList.contains('d-none')) { document.getElementById('governMob${i}').classList.remove('d-none'); } else { document.getElementById('governMob${i}').classList.add('d-none'); }`
             );
-        } else if (domTable.id == 'proposalsContestedTableBody') {
+        } else {
             domStatus.setAttribute(
                 'onclick',
                 `if(document.getElementById('governMobCon${i}').classList.contains('d-none')) { document.getElementById('governMobCon${i}').classList.remove('d-none'); } else { document.getElementById('governMobCon${i}').classList.add('d-none'); }`
@@ -992,22 +992,35 @@ async function renderProposals(arrProposals, fContested) {
 
         // Proposal Status calculation
         const nRequiredVotes = cMasternodes.enabled / 10;
-        let strStatus = '';
-        let strFundingStatus = '';
+        const nMonthlyPayment = parseInt(cProposal.MonthlyPayment);
+
+        // Initial state is assumed to be "Not enough votes"
+        let strStatus = translation.proposalFailing;
+        let strFundingStatus = translation.proposalNotFunded;
+        let strColourClass = 'No';
 
         // Proposal Status calculations
         if (nNetYes < nRequiredVotes) {
-            // Scenario 1: Not enough votes
-            strStatus = translation.proposalFailing;
-            strFundingStatus = translation.proposalNotFunded;
+            // Scenario 1: Not enough votes, default scenario
         } else if (!cProposal.IsEstablished) {
             // Scenario 2: Enough votes, but not established
-            strStatus = translation.proposalFailing;
             strFundingStatus = translation.proposalTooYoung;
+        } else if (
+            nMonthlyPayment + totalAllocatedAmount >
+            cChainParams.current.maxPayment / COIN
+        ) {
+            // Scenario 3: Enough votes, and established, but over-allocating the budget
+            strStatus = translation.proposalPassing;
+            strFundingStatus = translation.proposalOverBudget;
+            strColourClass = 'OverAllocated';
         } else {
-            // Scenario 3: Enough votes, and established
+            // Scenario 4: Enough votes, and established
             strStatus = translation.proposalPassing;
             strFundingStatus = translation.proposalFunded;
+            strColourClass = 'Yes';
+
+            // Allocate this with the budget
+            totalAllocatedAmount += nMonthlyPayment;
         }
 
         // Funding Status and allocation calculations
@@ -1106,24 +1119,8 @@ async function renderProposals(arrProposals, fContested) {
             </span>`;
             domStatus.appendChild(finalizeButton);
         } else {
-            if (domTable.id == 'proposalsTableBody') {
-                if (
-                    cProposal.IsEstablished &&
-                    nNetYes >= nRequiredVotes &&
-                    totalAllocatedAmount + cProposal.MonthlyPayment <=
-                        cChainParams.current.maxPayment / COIN
-                ) {
-                    strFundingStatus = translation.proposalFunded;
-                    totalAllocatedAmount += cProposal.MonthlyPayment;
-                }
-            }
-
-            // Figure out the colour of the Status, if any (using CSS class `votes[Yes/No]`)
-            const strColourClass =
-                strStatus === translation.proposalPassing ? 'Yes' : 'No';
-
             domStatus.innerHTML = `
-            <span style="font-size:12px; line-height: 15px; display: block; margin-bottom:15px;">
+            <span style="text-transform:uppercase; font-size:12px; line-height: 15px; display: block; margin-bottom:15px;">
                 <span style="font-weight:700;" class="votes${strColourClass}">${strStatus}</span><br>
                 <span style="color:hsl(265 100% 67% / 1);">(${strFundingStatus})</span><br>
             </span>
@@ -1152,7 +1149,7 @@ async function renderProposals(arrProposals, fContested) {
         )}`;
 
         // Convert proposal amount to user's currency
-        const nProposalValue = parseInt(cProposal.MonthlyPayment) * nPrice;
+        const nProposalValue = nMonthlyPayment * nPrice;
         const { nValue } = optimiseCurrencyLocale(nProposalValue);
         const strProposalCurrency = nValue.toLocaleString('en-gb', cLocale);
 
@@ -1161,7 +1158,7 @@ async function renderProposals(arrProposals, fContested) {
         domPayments.classList.add('for-desktop');
         domPayments.style = 'vertical-align: middle;';
         domPayments.innerHTML = `<span class="governValues"><b>${sanitizeHTML(
-            parseInt(cProposal.MonthlyPayment).toLocaleString('en-gb', ',', '.')
+            nMonthlyPayment.toLocaleString('en-gb', ',', '.')
         )}</b> <span class="governMarked">${
             cChainParams.current.TICKER
         }</span> <br>
@@ -1250,9 +1247,9 @@ async function renderProposals(arrProposals, fContested) {
         const mobileDomRow = domTable.insertRow();
         const mobileExtended = mobileDomRow.insertCell();
         mobileExtended.style = 'vertical-align: middle;';
-        if (domTable.id == 'proposalsTableBody') {
+        if (!fContested) {
             mobileExtended.id = `governMob${i}`;
-        } else if (domTable.id == 'proposalsContestedTableBody') {
+        } else {
             mobileExtended.id = `governMobCon${i}`;
         }
         mobileExtended.colSpan = '2';
@@ -1266,11 +1263,7 @@ async function renderProposals(arrProposals, fContested) {
             </div>
             <div class="col-7">
                 <span class="governValues"><b>${sanitizeHTML(
-                    parseInt(cProposal.MonthlyPayment).toLocaleString(
-                        'en-gb',
-                        ',',
-                        '.'
-                    )
+                    nMonthlyPayment.toLocaleString('en-gb', ',', '.')
                 )}</b> <span class="governMarked">${
             cChainParams.current.TICKER
         }</span> <span style="margin-left:10px; margin-right: 2px;" class="governMarked governFiatSize">${strProposalCurrency}</span></b></span>
@@ -1318,7 +1311,7 @@ async function renderProposals(arrProposals, fContested) {
     }
 
     // Show allocated budget
-    if (domTable.id == 'proposalsTableBody') {
+    if (!fContested) {
         const strAlloc = sanitizeHTML(
             totalAllocatedAmount.toLocaleString('en-gb')
         );

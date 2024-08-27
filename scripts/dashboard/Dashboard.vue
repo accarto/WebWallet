@@ -84,8 +84,12 @@ async function importWallet({ type, secret, password = '' }) {
      */
     let parsedSecret;
     if (type === 'hardware') {
-        if (navigator.userAgent.includes('Firefox')) {
-            createAlert('warning', ALERTS.WALLET_FIREFOX_UNSUPPORTED, 7500);
+        if (!navigator.usb) {
+            createAlert(
+                'warning',
+                ALERTS.WALLET_HARDWARE_USB_UNSUPPORTED,
+                7500
+            );
             return false;
         }
         parsedSecret = new ParsedSecret(await HardwareWalletMasterKey.create());
@@ -390,6 +394,13 @@ onMounted(async () => {
             transferAmount.value = parseFloat(urlParams.get('amount')) ?? 0;
             showTransferMenu.value = true;
         }
+
+        // Remove any URL 'commands' after running, so that they don't re-run if a user refreshes
+        window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname
+        );
     }
     updateLogOutButton();
 });
@@ -434,7 +445,8 @@ async function openSendQRScanner() {
             return;
         }
         if (data.includes('addcontact=')) {
-            const urlParams = new URLSearchParams(data);
+            const strParams = data.substring(data.indexOf('addcontact='));
+            const urlParams = new URLSearchParams(strParams);
             await handleContactRequest(urlParams);
             return;
         }

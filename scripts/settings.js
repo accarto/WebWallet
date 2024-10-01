@@ -50,8 +50,10 @@ export let fAutoSwitch = true;
 export let nDisplayDecimals = 2;
 /** A mode which configures MPW towards Advanced users, with low-level feature access and less restrictions (Potentially dangerous) */
 export let fAdvancedMode = false;
-/** automatically lock the wallet after any operation  that requires unlocking */
+/** Automatically lock the wallet after any operation that requires unlocking */
 export let fAutoLockWallet = false;
+/** The user's transaction mode, `true` for public, `false` for private */
+export let fPublicMode = true;
 
 export class Settings {
     /**
@@ -90,6 +92,10 @@ export class Settings {
      * @type {boolean} Whether auto lock feature is enabled or disabled
      */
     autoLockWallet;
+    /**
+     * @type {Boolean} The user's transaction mode, `true` for public, `false` for private
+     */
+    publicMode;
     constructor({
         explorer,
         node,
@@ -100,6 +106,7 @@ export class Settings {
         advancedMode = false,
         coldAddress = '',
         autoLockWallet = false,
+        publicMode = true,
     } = {}) {
         this.explorer = explorer;
         this.node = node;
@@ -109,6 +116,7 @@ export class Settings {
         this.displayDecimals = displayDecimals;
         this.advancedMode = advancedMode;
         this.autoLockWallet = autoLockWallet;
+        this.publicMode = publicMode;
         // DEPRECATED: Read-only below here, for migration only
         this.coldAddress = coldAddress;
     }
@@ -169,6 +177,7 @@ export async function start() {
         displayDecimals,
         advancedMode,
         autoLockWallet,
+        publicMode,
         // DEPRECATED: Below here are entries that are read-only due to being moved to a different location in the DB
         coldAddress,
     } = await database.getSettings();
@@ -190,7 +199,10 @@ export async function start() {
             await database.setSettings({ coldAddress: '' });
         }
     }
-    // auto lock wallet
+    // Transaction Mode (Public/Private)
+    fPublicMode = publicMode;
+
+    // Auto lock wallet
     fAutoLockWallet = autoLockWallet;
     doms.domAutoLockModeToggler.checked = fAutoLockWallet;
     configureAutoLockWallet();
@@ -529,12 +541,28 @@ export async function toggleAdvancedMode() {
     await database.setSettings({ advancedMode: fAdvancedMode });
 }
 
+/**
+ * Toggle Advanced Mode at runtime and in DB
+ */
 export async function toggleAutoLockWallet() {
     fAutoLockWallet = !fAutoLockWallet;
     configureAutoLockWallet();
+
     // Update the setting in the DB
     const database = await Database.getInstance();
     await database.setSettings({ autoLockWallet: fAutoLockWallet });
+}
+
+/**
+ * Toggle the Transaction Mode at runtime and in DB
+ * @param {boolean?} fNewPublicMode - Optionally force the setting to a value
+ */
+export async function togglePublicMode(fNewPublicMode = !fPublicMode) {
+    fPublicMode = fNewPublicMode;
+
+    // Update the setting in the DB
+    const database = await Database.getInstance();
+    await database.setSettings({ publicMode: fPublicMode });
 }
 
 /**

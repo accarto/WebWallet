@@ -827,7 +827,6 @@ export class Wallet {
             ) {
                 try {
                     block = await cNet.getBlock(blockHeight);
-                    if (!block) return;
                     if (block.txs) {
                         if (
                             this.hasShield() &&
@@ -1230,7 +1229,7 @@ export class Wallet {
         }
         const txs = await db.getTxs();
         for (const tx of txs) {
-            this.addTransaction(tx, true);
+            await this.addTransaction(tx, true);
         }
     }
 }

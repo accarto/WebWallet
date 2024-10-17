@@ -82,8 +82,8 @@ export class ExplorerNetwork extends Network {
     /**
      * @param {string} strUrl - Url pointing to the blockbook explorer
      */
-    constructor(strUrl, wallet) {
-        super(wallet);
+    constructor(strUrl) {
+        super();
         /**
          * @type{string}
          * @public
@@ -393,8 +393,7 @@ export async function retryWrapper(func, isExplorer, ...args) {
             if (isExplorer) {
                 // Set the explorer at Network-class level, then as a hacky workaround for the current callback; we
                 // ... adjust the internal URL to the new explorer.
-                getNetwork().strUrl = cNewInstance.url;
-                setExplorer(cNewInstance, true);
+                await setExplorer(cNewInstance, true);
             } else {
                 // For the Node, we change the setting directly
                 setNode(cNewInstance, true);

@@ -667,6 +667,10 @@ export class Wallet {
             } else if (nAmount < 0) {
                 type = HistoricalTxType.SENT;
             }
+            const isCoinSpecial = tx.isCoinStake() || tx.isCoinBase();
+            const isConfirmed =
+                blockCount - tx.blockHeight >=
+                (isCoinSpecial ? cChainParams.current.coinbaseMaturity : 6);
 
             histTXs.push(
                 new HistoricalTx(
@@ -676,7 +680,8 @@ export class Wallet {
                     false,
                     tx.blockTime,
                     tx.blockHeight,
-                    Math.abs(nAmount)
+                    Math.abs(nAmount),
+                    isConfirmed
                 )
             );
         }

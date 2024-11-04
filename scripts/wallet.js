@@ -710,6 +710,9 @@ export class Wallet {
             await this.#syncShield();
         }
         this.#isSynced = true;
+        // At this point download the last missing blocks in the range (blockCount -5, blockCount]
+        await this.getLatestBlocks(blockCount);
+
         // Update both activities post sync
         getEventEmitter().enableEvent('balance-update');
         getEventEmitter().emit('balance-update');
@@ -836,9 +839,9 @@ export class Wallet {
     subscribeToNetworkEvents() {
         getEventEmitter().on('new-block', async (block) => {
             if (this.#isSynced) {
+                await this.getLatestBlocks(block);
                 // Invalidate the balance cache to keep immature balance updated
                 this.#mempool.invalidateBalanceCache();
-                await this.getLatestBlocks(block);
                 getEventEmitter().emit('new-tx');
             }
         });
@@ -851,11 +854,9 @@ export class Wallet {
         async (blockCount) => {
             const cNet = getNetwork();
             let block;
-            // Don't ask for the exact last block that arrived,
-            // since it takes around 1 minute for blockbook to make it API available
             for (
                 let blockHeight = this.#lastProcessedBlock + 1;
-                blockHeight < blockCount;
+                blockHeight <= blockCount;
                 blockHeight++
             ) {
                 try {

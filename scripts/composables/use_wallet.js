@@ -6,6 +6,7 @@ import { cOracle } from '../prices.js';
 import { ledgerSignTransaction } from '../ledger.js';
 import { defineStore } from 'pinia';
 import { lockableFunction } from '../lock.js';
+import { blockCount as rawBlockCount } from '../global.js';
 import { doms } from '../global.js';
 import {
     RECEIVE_TYPES,
@@ -30,6 +31,8 @@ export const useWallet = defineStore('wallet', () => {
     const getKeyToExport = () => wallet.getKeyToExport();
     const isEncrypted = ref(true);
     const hasShield = ref(wallet.hasShield());
+    const getNewAddress = (nReceiving) => wallet.getNewAddress(nReceiving);
+    const blockCount = ref(0);
 
     const setMasterKey = async ({ mk, extsk }) => {
         await wallet.setMasterKey({ mk, extsk });
@@ -132,9 +135,12 @@ export const useWallet = defineStore('wallet', () => {
     });
 
     const isCreatingTransaction = () => createAndSendTransaction.isLocked();
+    const getMasternodeUTXOs = () => wallet.getMasternodeUTXOs();
+    const getPath = (script) => wallet.getPath(script);
 
     getEventEmitter().on('toggle-network', async () => {
         isEncrypted.value = await hasEncryptedWallet();
+        blockCount.value = rawBlockCount;
     });
 
     getEventEmitter().on('wallet-import', async () => {
@@ -153,6 +159,10 @@ export const useWallet = defineStore('wallet', () => {
         price.value = cOracle.getCachedPrice(strCurrency);
     });
 
+    getEventEmitter().on('new-block', () => {
+        blockCount.value = rawBlockCount;
+    });
+
     return {
         publicMode,
         isImported,
@@ -167,6 +177,7 @@ export const useWallet = defineStore('wallet', () => {
         isHardwareWallet,
         checkDecryptPassword,
         encrypt,
+        getNewAddress,
         getNewChangeAddress,
         wipePrivateData: () => {
             wallet.wipePrivateData();
@@ -184,5 +195,8 @@ export const useWallet = defineStore('wallet', () => {
         sync,
         createAndSendTransaction,
         coldBalance,
+        getMasternodeUTXOs,
+        getPath,
+        blockCount,
     };
 });

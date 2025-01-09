@@ -415,7 +415,7 @@ onMounted(async () => {
         } else if (urlParams.has('pay')) {
             transferAddress.value = urlParams.get('pay') ?? '';
             transferDescription.value = urlParams.get('desc') ?? '';
-            transferAmount.value = parseFloat(urlParams.get('amount')) ?? 0;
+            transferAmount.value = parseFloat(urlParams.get('amount')) || '';
             showTransferMenu.value = true;
         }
 

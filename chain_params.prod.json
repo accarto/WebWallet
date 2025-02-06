@@ -16,12 +16,10 @@
         "MASTERNODE_PORT": 27777,
         "SHIELD_PREFIX": "ps",
         "Explorers": [
-            { "name": "Explorer", "url": "https://explorer.fortuneblock.xyz" },
-            { "name": "Explorer2", "url": "https://explorer2.fortuneblock.xyz" }
+            { "name": "Explorer", "url": "https://e.fortuneblock.xyz" }
         ],
         "Nodes": [
-            { "name": "Rpc", "url": "https://rpc.fortuneblock.xyz/mainnet" },
-            { "name": "Rpc2", "url": "https://rpc2.fortuneblock.xyz/mainnet" }
+            { "name": "Api", "url": "https://explorer.fortuneblock.xyz/api" }
 
         ],
         "Consensus": {},

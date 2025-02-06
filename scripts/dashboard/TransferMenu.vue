@@ -163,7 +163,7 @@ async function selectContact() {
                                     border-left: 0px;
                                 "
                             >
-                                PIVX
+                                FTB
                             </span>
                             <span
                                 class="input-group-text p-0"

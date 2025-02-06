@@ -29,7 +29,7 @@ async function setupConnection() {
         const TransportWebUSB = (await import('@ledgerhq/hw-transport-webusb'))
             .default;
         transport = await TransportWebUSB.create();
-        cHardwareWallet = new AppBtc({ transport, currency: 'PIVX' });
+        cHardwareWallet = new AppBtc({ transport, currency: 'FTB' });
     }
 }
 /**

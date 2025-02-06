@@ -423,7 +423,7 @@ function renderAddress(strAddress) {
     const domQR = document.getElementById('receiveModalEmbeddedQR');
     try {
         // Update the QR section
-        createQR('pivx:' + strAddress, domQR, 10);
+        createQR('ftb:' + strAddress, domQR, 10);
         domQR.firstChild.style.width = '100%';
         domQR.firstChild.style.height = 'auto';
         domQR.firstChild.classList.add('no-antialias');

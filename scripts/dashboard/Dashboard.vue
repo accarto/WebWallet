@@ -625,7 +625,7 @@ defineExpose({
                                         font-family: Montserrat !important;
                                     "
                                 >
-                                    PIVX Promos
+                                    FTB Promos
                                     {{ translation.pivxPromos }}
                                 </p>
                                 <div id="redeemCodeUse">

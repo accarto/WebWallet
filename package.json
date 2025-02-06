@@ -23,7 +23,7 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/PIVX-Labs/MyPIVXWallet.git"
+        "url": "git+https://github.com/accarto/WebWallet.git"
     },
     "keywords": [
         "crypto",
@@ -33,9 +33,9 @@
     "author": "PIVX Labs",
     "license": "MIT",
     "bugs": {
-        "url": "https://github.com/PIVX-Labs/MyPIVXWallet/issues"
+        "url": "https://github.com/accarto/WebWallet.git/issues"
     },
-    "homepage": "https://github.com/PIVX-Labs/MyPIVXWallet#readme",
+    "homepage": "https://github.com/accarto/WebWallet.git#readme",
     "devDependencies": {
         "@fluent/langneg": "^0.7.0",
         "@oreillymedia/cypress-playback": "^3.0.9",

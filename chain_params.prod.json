@@ -19,7 +19,7 @@
             { "name": "Explorer", "url": "https://e.fortuneblock.xyz" }
         ],
         "Nodes": [
-            { "name": "Api", "url": "https://explorer.fortuneblock.xyz/api" }
+            { "name": "Rpc", "url": "https://rpc.fortuneblock.xyz/mainnet" }
 
         ],
         "Consensus": {},

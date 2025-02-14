@@ -30,7 +30,7 @@ export const useWallet = defineStore('wallet', () => {
     const getKeyToBackup = async () => await wallet.getKeyToBackup();
     const getKeyToExport = () => wallet.getKeyToExport();
     const isEncrypted = ref(true);
-    const hasShield = ref(wallet.hasShield());
+    const hasShield = ref(false);
     const getNewAddress = (nReceiving) => wallet.getNewAddress(nReceiving);
     const blockCount = ref(0);
 
@@ -48,7 +48,7 @@ export const useWallet = defineStore('wallet', () => {
     };
     const setShield = (shield) => {
         wallet.setShield(shield);
-        hasShield.value = wallet.hasShield();
+        hasShield.value = false;
     };
     const getNewChangeAddress = () => wallet.getNewChangeAddress();
     const isHardwareWallet = ref(wallet.isHardwareWallet());
@@ -81,7 +81,7 @@ export const useWallet = defineStore('wallet', () => {
         isSynced.value = wallet.isSynced;
     };
     getEventEmitter().on('shield-loaded-from-disk', () => {
-        hasShield.value = wallet.hasShield();
+        hasShield.value = false;
     });
     const createAndSendTransaction = lockableFunction(
         async (network, address, value, opts) => {
